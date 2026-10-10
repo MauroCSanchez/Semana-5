@@ -1,101 +1,59 @@
 # Registro de configuración y despliegue — App de Comentarios
 
-> Documento de la actividad de la Semana 3 (SDD I — Spec First).
-> Fuentes: `Requirements/requirements.md` (v0.1-draft) y `design.md`.
-> Alcance de este registro: cómo pasé del spec al andamiaje del proyecto usando OpenCode,
-> dejando el razonamiento de cada decisión por escrito.
-
----
+**Alumno:** Sanchez Mauro
 
 ## 1. Herramienta y modo de trabajo
 
-- **Herramienta:** OpenCode (TUI). Se ejecuta desde la raíz del proyecto con `opencode`.
-- **Forma de trabajo:** *Spec First* / SDD. El orden de las etapas es fijo:
-  1. `requirements.md` (el **qué**: features, reglas y alcance).
-  2. `design.md` (el **cómo**: arquitectura y ADR).
-  3. `AGENTS.md` **destilado** (las reglas durables, versionadas en el repo).
-  4. **Plan Mode** para planificar el andamiaje sin tocar archivos.
-  5. Revisión del plan y ejecución del andamiaje.
-- **Agentes de OpenCode que usé:**
-  - **Build** (por defecto): todos los tools habilitados, para ejecutar cambios.
-  - **Plan**: agente restringido. `edit` y `bash` quedan en `ask`/`deny`, así que analiza y
-    propone sin modificar el repo. Se cambia con la tecla **Tab** (cicla entre agentes).
-- **Cómo creé el `AGENTS.md`:** lo escribí a mano en la raíz del repo (alternativa: el comando
-  `/init` de la TUI, que lo genera guiado). Va commiteado, porque un `AGENTS.md` que vive solo en
-  mi máquina no es una regla del proyecto. Nota: la carpeta todavía **no es un repo Git**, así que
-  requiere `git init` antes de versionarlo.
-- **Por qué este modo y no otro:** el sprint de la Semana 1 mostró que pedir código "sin contexto
-  y sin especificación" produce resultados que parecen funcionar pero violan reglas que nunca se
-  dijeron. Acá el spec existe **antes** de escribir código, y las reglas quedan en un archivo que
-  el agente vuelve a leer en cada sesión.
+- Herramienta: OpenCode (app de escritorio), sobre el repo de la App de Comentarios.
+- Modo para planificar: Plan Mode (agente `plan`) — analiza y propone sin modificar archivos.
+- Modo para ejecutar: Build Mode (agente `build`) — con permisos para escribir y ejecutar.
+- En qué momento cambiaste de modo y por qué: pasé a Plan Mode antes de encargar el andamiaje,
+  para que no tocara nada hasta tener el plan revisado; volví a Build Mode recién después de
+  aprobar y corregir el plan, solo para ejecutarlo.
 
----
+## 2. AGENTS.md destilado
 
-## 2. AGENTS.md destilado (reglas + origen de cada una)
+### Reglas
 
-Recorrí el spec y extraje las decisiones que se sostienen en todo el proyecto. El archivo completo
-quedó en la raíz como `AGENTS.md`. Las reglas, cada una con su origen:
+- Validá que `contenido` tenga entre 3 y 500 caracteres; si no, no guardes nada (origen: RN-001).
+- Rechazá contenido vacío o compuesto solo por espacios (origen: RN-002).
+- Exigí `autor` obligatorio de 2 a 40 caracteres (origen: RN-003).
+- Permití un solo nivel de respuestas (origen: RN-004).
+- Verificá que el comentario padre exista; si no existe, no guardes la respuesta (origen: RN-005).
+- Verificá que el artículo exista (origen: RN-006).
+- Ordená por `fechaCreacion` descendente y, en empate, por `id` descendente (origen: RN-007).
+- Hacé que la validación viva en el servidor y sea la única fuente de verdad (origen: D-01).
+- Calculá el orden en cada consulta; no guardes campos de orden (origen: D-02).
+- Verificá el padre dentro de la misma escritura (origen: D-03).
+- Usá tablas separadas para comentarios y respuestas (origen: D-04).
+- Armá la conversación con una sola lectura (origen: D-05).
+- Asigná `fechaCreacion` en el servidor (origen: D-06).
+- Mantené la separación de módulos: presentación no valida ni escribe; persistencia opera todo o
+  nada; consulta solo lee, asocia y ordena (origen: design.md §3).
 
-### 2.1 Alcance (origen: requirements.md)
+### Regla que acota alcance
 
-| # | Regla (imperativo, 2ª persona) | Origen |
-| --- | --- | --- |
-| 1 | Implementá solo tres capacidades: crear comentario, listar comentarios y responder. | requirements.md §1, §6 |
-| 2 | No agregues autenticación, edición, borrado, moderación, likes, notificaciones, paginación, búsqueda, formato enriquecido, i18n ni anti-spam. | requirements.md §6 "FUERA del alcance" |
-| 3 | No crees ni muestres atributos sin uso de negocio (`editado`, `likes`, `visto`, `ip`, `nivel`, `slug`). | requirements.md §3 |
-| 4 | No agregues requisitos nuevos por tu cuenta. | requirements.md §7, design.md (encabezado) |
+Declaré que una regla aplica solo a una parte del proyecto usando globs en lugar de una
+instrucción general:
 
-### 2.2 Reglas de negocio (origen: requirements.md)
+- `api/**/*.php`: implementá la validación de RN-001, RN-002, RN-003 y RN-005 del lado del
+  servidor, con sentencias preparadas (origen: D-01).
+- `sql/schema.sql`: definí dos tablas; la de respuestas con clave foránea al comentario y sin
+  auto-referencia (origen: D-04).
+- `js/app.js` e `index.html`: no implementes la validación como fuente de verdad; solo mostrá
+  mensajes con el mismo texto que el servidor (origen: D-01 y design.md §3).
 
-| # | Regla | Origen |
-| --- | --- | --- |
-| 5 | Validá `contenido` entre 3 y 500 caracteres; si no, no guardes nada. | RN-001 |
-| 6 | Rechazá contenido vacío o solo con espacios. | RN-002 |
-| 7 | Exigí `autor` obligatorio, de 2 a 40 caracteres. | RN-003 |
-| 8 | Permití un solo nivel de respuestas. | RN-004 |
-| 9 | Verificá que el comentario padre exista; si no, no guardes. | RN-005 |
-| 10 | Verificá que el artículo exista; si no, no guardes el comentario. | RN-006 |
-| 11 | Ordená por `fechaCreacion` desc y, en empate, por `id` desc. | RN-007 |
+### Lo que le pediste al agente que NO haga
 
-### 2.3 Arquitectura (origen: design.md, ADR)
+- No agregar autenticación, edición, borrado, moderación, likes, notificaciones, paginación,
+  búsqueda, formato enriquecido, i18n ni anti-spam (origen: requirements.md §6).
+- No crear ni mostrar atributos sin uso de negocio (`editado`, `likes`, `visto`, `ip`, `nivel`,
+  `slug`) (origen: requirements.md §3).
+- No implementar la lógica de negocio en esta etapa: los endpoints van vacíos y el SQL solo DDL.
+- No decidir los pendientes del spec: escapado/XSS, conteo de los 500 caracteres, doble envío,
+  origen del `idArticulo` y tope sin paginación (requirements.md §7 y design.md §5).
 
-| # | Regla | Origen |
-| --- | --- | --- |
-| 12 | La validación vive en el servidor y es la única fuente de verdad. | D-01 |
-| 13 | El orden se calcula en cada consulta; no guardes campos de orden. | D-02 |
-| 14 | Verificá el padre dentro de la misma escritura (todo o nada). | D-03 |
-| 15 | Comentarios y respuestas en tablas separadas; la de respuestas no se auto-referencia. | D-04 |
-| 16 | Armá la conversación con una cantidad fija de lecturas. | D-05 |
-| 17 | La fecha la asigna el servidor, no el navegador. | D-06 |
-
-### 2.4 Límites entre módulos (origen: design.md §3)
-
-| # | Regla | Origen |
-| --- | --- | --- |
-| 18 | Presentación: no valida ni escribe; solo formula, muestra listado y mensajes. | design.md §3 |
-| 19 | Comentarios: valida RN-001/002/003/005 y arma la entidad; si falla, no escribe. | design.md §3, D-01 |
-| 20 | Persistencia: único módulo que conoce el almacenamiento; opera todo o nada. | design.md §3, D-03 |
-| 21 | Consulta y orden: solo lee, asocia y ordena; no valida. | design.md §3, D-02, D-05 |
-
-### 2.5 Reglas acotadas (globs de archivo)
-
-| # | Regla | Glob | Origen |
-| --- | --- | --- | --- |
-| 22 | Toda la validación de servidor y sentencias preparadas. | `api/**/*.php` | D-01 |
-| 23 | Dos tablas, FK al comentario, sin auto-referencia. | `sql/schema.sql` | D-04 |
-| 24 | No poner la validación como fuente de verdad; solo mensajes. | `js/app.js`, `index.html` | D-01, §3 |
-| 25 | Orden resuelto en la consulta, no en el cliente. | `api/**/*.php` | RN-007, D-02 |
-
-> **Pendientes que NO convertí en regla** (el spec los deja abiertos, no los inventé): escapado
-> de HTML/XSS, conteo de los 500 caracteres, doble envío, origen del `idArticulo` y tope sin
-> paginación. Origen: requirements.md §7 y design.md §5.
-
----
-
-## 3. Prompt de Plan Mode (la encargo, con referencias explícitas)
-
-Para esto cambié a **Plan Mode** con **Tab** (así el agente planea sin escribir archivos). El
-prompt que usé, con referencias `@` explícitas a los archivos que el plan debe respetar:
+## 3. Prompt de Plan Mode
 
 ```text
 @AGENTS.md @Requirements/requirements.md @design.md @README.md
@@ -121,101 +79,98 @@ Entregame:
 5. Las decisiones donde dudes y por qué, para que yo las revise.
 ```
 
----
+## 4. Revisión del plan
 
-## 4. Revisión del plan (mis correcciones y por qué)
+### Corrección 1
 
-Leí el plan que devolvió Plan Mode. Lo tomé como borrador y lo corregí contra el spec:
+- Pedí cambiar: no heredar el modelo de datos de la Semana 1 y eliminar el endpoint `DELETE`.
+- Motivo: la lógica existente violaba el spec (tabla única autorreferente, orden ASC, límites
+  inventados de 100/1000 caracteres, borrado fuera de alcance).
+- Resultado: `api/comments.php` quedó solo con los endpoints vacíos (listar, crear, responder) y
+  sin `DELETE`.
 
-| # | Lo que proponía el plan | Mi corrección | Por qué |
-| --- | --- | --- | --- |
-| 1 | Reutilizar la tabla única `comments` con `parent_id` (lo que ya existía del sprint 1). | Dos tablas separadas: comentarios y respuestas. | D-04: una sola tabla autorelacionada permite anidar respuestas, justo lo que RN-004 prohíbe. La forma de los datos debe impedirlo, no el código. |
-| 2 | Poner la validación principal en el formulario (JS/HTML). | El servidor es la única fuente de verdad; el cliente solo muestra mensajes. | D-01: `required`/`maxlength` se saltean; el único punto que garantiza "no se guarda nada" es el servidor. |
-| 3 | Ordenar con `ORDER BY created_at ASC` (copia del código viejo). | `ORDER BY fechaCreacion DESC, id DESC`. | RN-007: el orden exigido es del más nuevo al más viejo, con desempate por id. |
-| 4 | Verificar el padre con una lectura y después el insert. | Verificación dentro de la misma escritura, todo o nada. | D-03: dos operaciones dejan una ventana donde el padre puede dejar de existir. |
-| 5 | Asignar la fecha con `DEFAULT CURRENT_TIMESTAMP` en la base. | El servidor asigna la fecha y la entidad sale completa del módulo de comentarios. | D-06: el código necesita la fecha para ordenar y mostrar; no debe quedar invisible para la app. |
-| 6 | Conservar el endpoint `DELETE` del código anterior. | Eliminarlo del andamiaje. | Borrado está fuera del alcance v1 (requirements.md §6). |
-| 7 | No incluir `idArticulo` ni el filtrado por artículo. | Agregar el artículo a la entidad y el filtrado por artículo en la consulta. | RN-006 y F-COM-002 CA-4: un comentario pertenece a un artículo y el listado es por artículo. |
-| 8 | Mezclar lectura y validación en un mismo módulo. | Separar en cuatro módulos (presentación, comentarios, persistencia, consulta y orden). | design.md §3: cada módulo con una sola responsabilidad evita que la validación se filtre a la lectura. |
+### Corrección 2
 
-Criterio general de la revisión: cada vez que el plan contradecía un **RN** (regla de negocio) o
-un **D** (decisión de arquitectura), ganaba el spec, no el código que ya existía.
+- Pedí cambiar: dos tablas en español (`comentarios`/`respuestas`) y `idArticulo` como columna
+  simple, sin tabla de artículos.
+- Motivo: D-04 (respuestas sin auto-referencia) y que en la v1 la app no administra artículos
+  (RN-006 no es verificable).
+- Resultado: `sql/schema.sql` define ambas tablas con FK de respuestas → comentarios y `idArticulo
+  INT` sin FK.
 
----
+### Corrección 3
 
-## 5. Ejecución del andamiaje (qué archivos/módulos quedaron, sin lógica)
+- Pedí cambiar: aplicar los ADR completos (D-01 a D-06) y no solo los del diseño propio (D-01 a
+  D-04).
+- Motivo: el `AGENTS.md` de la raíz exige D-05 (una sola lectura) y D-06 (fecha asignada por el
+  servidor), ausentes en `specs/001-publicar-comentario/design.md`.
+- Resultado: `api/queries.php` prevé obtener la conversación con una sola lectura y `api/storage.php`
+  recibe la entidad con fecha puesta por el servidor.
 
-Ejecuté el plan ya corregido en **Build Mode**. Quedó el esqueleto, **sin lógica de negocio**:
-los cuerpos de las funciones son TODO y el SQL solo define estructura.
+## 5. Ejecución del andamiaje
 
-```text
-app-comentarios/
-├── AGENTS.md              → reglas destiladas del proyecto (sección 2)
-├── index.html             → MÓDULO PRESENTACIÓN: formulario + contenedor del listado
-├── config.php             → credenciales de la base
-├── css/
-│   └── style.css          → estilos nativos (sin cambios de diseño)
-├── js/
-│   └── app.js             → MÓDULO PRESENTACIÓN: render y fetch (sin reglas de validación)
-├── api/
-│   ├── comments.php       → MÓDULO COMENTARIOS: routing GET/POST (sin DELETE)
-│   ├── validation.php     → MÓDULO COMENTARIOS: firmas de RN-001, RN-002, RN-003, RN-005
-│   ├── storage.php        → MÓDULO PERSISTENCIA: alta atómica (D-03) y D-04
-│   └── queries.php        → MÓDULO CONSULTA Y ORDEN: una lectura (D-05), orden (D-02)
-└── sql/
-    └── schema.sql         → DOS tablas: comentarios y respuestas (D-04), solo estructura
-```
+- `index.html` — módulo de presentación: formulario y contenedor del listado (sin lógica).
+- `css/style.css` — estilos nativos (estructura visual).
+- `js/app.js` — módulo de presentación: stubs de render y envío; no ordena ni valida.
+- `api/comments.php` — endpoints vacíos: `listarComentarios`, `crearComentario`, `crearRespuesta`.
+- `api/validation.php` — firmas de las reglas: `normalizarTexto`, `validarComentario`,
+  `validarRespuesta`.
+- `api/storage.php` — firmas de persistencia: `guardarComentario`, `guardarRespuesta`.
+- `api/queries.php` — firma de consulta y orden: `obtenerConversacion`.
+- `sql/schema.sql` — DDL de las dos tablas (solo estructura).
+- `config.php` — credenciales de la base (soporte).
 
-Mapa módulo → ADR que lo justifica:
+### Desvíos entre el plan revisado y lo que se generó
 
-- **Presentación** (`index.html`, `js/app.js`): no valida ni escribe (design.md §3, D-01).
-- **Comentarios** (`api/comments.php`, `api/validation.php`): recibe, valida y arma la entidad;
-  si una regla falla no escribe (D-01, RN-001/002/003/005).
-- **Persistencia** (`api/storage.php`): único que conoce el almacenamiento; operación todo o nada
-  (D-03, D-04).
-- **Consulta y orden** (`api/queries.php`): solo lee, asocia y ordena (D-02, D-05).
-
-Lo que **no** dejé en el andamiaje, a propósito: validación cliente como fuente de verdad, `DELETE`,
-paginación, búsqueda, likes, y cualquier lógica de negocio dentro de los cuerpos de función.
-
----
+- Sin desvíos de estructura. Único pendiente: la verificación de sintaxis con `php -l` no pudo
+  correrse porque el CLI de PHP no está disponible en el equipo.
 
 ## 6. Contraste con el sprint de la Semana 1
 
-En la Semana 1 le pedí a OpenCode una feature **sin spec ni contexto** ("agregá responder a un
-comentario"), con el objetivo de que fallara. El código resultante quedó en el repo y **viola el
-spec de hoy** en varios puntos concretos y comprobables:
+### Diferencia 1: orden del listado
 
-| Aspecto | Semana 1 (vibe coding) | Semana 3 (spec + verificación) | Regla que se violaba en S1 |
-| --- | --- | --- | --- |
-| Modelo de datos | Una tabla `comments` con `parent_id` autorreferente (`sql/schema.sql`). | Dos tablas separadas. | D-04 / RN-004 |
-| Orden del listado | `ORDER BY created_at ASC` (`api/comments.php`). | `fechaCreacion DESC, id DESC`. | RN-007 / D-02 |
-| Límites | autor > 100 y contenido > 1000; sin mínimo. | autor 2–40 y contenido 3–500. | RN-001 / RN-003 |
-| Contenido solo espacios | Se guarda (se recorta a vacío y no se rechaza). | Se rechaza. | RN-002 |
-| Verificación del padre | Lectura previa y luego insert (dos pasos). | Dentro de la misma escritura. | D-03 / RN-005 |
-| Borrado | Endpoint `DELETE` presente. | No existe. | Fuera de alcance (§6) |
-| Artículo | El concepto de artículo no aparece. | `idArticulo` presente y filtrado. | RN-006 / F-COM-002 CA-4 |
-| Orden | Parte del orden se resuelve en el cliente (`buildCommentTree`). | Orden resuelto en la consulta. | D-02 / D-05 |
+- Problema que pasó en la Semana 1: los comentarios se mostraban del más viejo al más nuevo
+  (`ORDER BY created_at ASC`) y el árbol se reordenaba a mano en el navegador.
+- Regla que lo habría evitado: RN-007 y D-02 (orden en la consulta: `fechaCreacion DESC, id DESC`).
+- Evidencia de que hoy funciona: `api/queries.php` expone `obtenerConversacion` con el orden
+  resuelto en la consulta y `js/app.js` no reordena nada.
 
-**Lectura del contraste:** el problema del sprint 1 no fue que el código "no anduviera" —de hecho
-la funcionalidad de responder aparecía— sino que **inventó estructura y reglas** donde el spec no
-había hablado, y **rompió** reglas que sí existían (orden y límites). Con el spec y el `AGENTS.md`
-por delante, esas mismas decisiones pasaron a ser explícitas y verificables.
+### Diferencia 2: modelo de datos
 
----
+- Problema que pasó en la Semana 1: una sola tabla `comments` autorreferenciada (`parent_id`)
+  permitía respuestas de respuestas.
+- Regla que lo habría evitado: D-04 (tablas separadas) y RN-004 (un solo nivel).
+- Evidencia de que hoy funciona: `sql/schema.sql` define `comentarios` y `respuestas`, y la FK solo
+  apunta al comentario.
 
-## 7. Conclusión: qué cambia en mi próxima tarea
+### Diferencia 3: validación de límites
 
-- **Empiezo por el spec, no por el código.** Antes de pedir nada escribo/confirmo el `requirements.md`
-  y el `design.md`; sin RN y sin ADR no arranco.
-- **Destilo el `AGENTS.md` antes de planificar**, y lo dejo versionado en el repo para que cada
-  sesión del agente parta de las mismas reglas.
-- **Planifico en Plan Mode y reviso el plan contra el spec** antes de ejecutar. La revisión es la
-  parte donde más se gana: es donde detecto que el plan copia vicios del código viejo (tabla única,
-  orden ASC, `DELETE`).
-- **Verifico cada decisión contra un origen.** Si una regla no sale de un RN o de un D, no entra:
-  pedido abierto = se anota como pendiente, no se inventa.
-- **Uso globs para reglas acotadas** en el `AGENTS.md`, en lugar de una instrucción general que
-  aplique a todo el proyecto.
-- **Contrasto siempre con el resultado del vibe coding.** El sprint 1 es la línea base de "lo que
-  no quiero": código que aparenta andar pero contradice el alcance y las reglas.
+- Problema que pasó en la Semana 1: se validaban límites inventados (autor >100, contenido >1000)
+  y un contenido de solo espacios se guardaba.
+- Regla que lo habría evitado: RN-001, RN-002 y RN-003 (3 a 500, no vacío, autor 2 a 40).
+- Evidencia de que hoy funciona: `api/validation.php` declara esas reglas y las columnas son
+  `VARCHAR(40)` y `VARCHAR(500)`.
+
+### Diferencia 4: verificación del comentario padre
+
+- Problema que pasó en la Semana 1: se comprobaba el padre con una lectura y se insertaba después,
+  en dos operaciones separadas.
+- Regla que lo habría evitado: D-03 (padre verificado dentro de la misma escritura, todo o nada).
+- Evidencia de que hoy funciona: `api/storage.php` prevé `guardarRespuesta` con la verificación del
+  padre en la misma operación.
+
+### Diferencia 5: alcance
+
+- Problema que pasó en la Semana 1: existía un endpoint `DELETE` para borrar comentarios, sin que
+  nadie lo pidiera.
+- Regla que lo habría evitado: requirements.md §6 (borrado fuera de alcance de la v1).
+- Evidencia de que hoy funciona: `api/comments.php` solo tiene listar, crear y responder; no hay
+  `DELETE`.
+
+## 7. Conclusión
+
+En mi próxima tarea no le pido código al agente sin definir antes el requirements y el design, y
+sin dejar las reglas destiladas en el `AGENTS.md` versionado. Planifico en Plan Mode, corrijo el
+plan contra las RN y los D, y recién después ejecuto en Build Mode. La única deuda técnica que
+arrastro es la verificación de sintaxis PHP con `php -l`, que debe correrse cuando se implemente la
+lógica.
