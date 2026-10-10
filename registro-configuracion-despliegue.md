@@ -33,8 +33,7 @@
 
 ## 2. AGENTS.md destilado (reglas + origen de cada una)
 
-Recorrí el spec y extraje las decisiones que se sostienen en todo el proyecto. El archivo completo
-quedó en la raíz como `AGENTS.md`. Las reglas, cada una con su origen:
+El archivo completo quedó en la raíz como `AGENTS.md`. Las reglas, cada una con su origen:
 
 ### 2.1 Alcance (origen: requirements.md)
 
